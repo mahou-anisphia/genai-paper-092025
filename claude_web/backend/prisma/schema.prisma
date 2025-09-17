@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  uid         String   @id @default(cuid())
+  id          String   @unique
+  name        String
+  address     String
+  phone       String
+  bankAccount String   @map("bank_account")
+  role        Role     @default(CUSTOMER)
+  orders      Order[]
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("customers")
+}
+
+model Product {
+  id          String   @id
+  name        String
+  description String
+  price       Float
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("products")
+}
+
+model Order {
+  id                    String        @id
+  uid                   String        @unique @default(cuid())
+  customerId            String        @map("customer_id")
+  customerName          String        @map("customer_name")
+  customerAddress       String        @map("customer_address")
+  customerPhone         String        @map("customer_phone")
+  customerBankAccount   String        @map("customer_bank_account")
+  items                 Json
+  totalAmount           Float         @map("total_amount")
+  status                OrderStatus   @default(PENDING)
+  paymentStatus         PaymentStatus @default(PENDING)
+  orderDate             DateTime      @default(now()) @map("order_date")
+  invoiceId             String?       @map("invoice_id")
+
+  customer              Customer      @relation(fields: [customerId], references: [id])
+  payments              Payment[]
+  invoice               Invoice?
+
+  @@map("orders")
+}
+
+model Payment {
+  id       String            @id
+  orderId  String            @map("order_id")
+  amount   Float
+  date     DateTime          @default(now())
+  status   PaymentStatus     @default(PENDING)
+  method   PaymentMethod
+
+  order    Order             @relation(fields: [orderId], references: [id])
+
+  @@map("payments")
+}
+
+model Invoice {
+  id       String         @id
+  orderId  String         @unique @map("order_id")
+  amount   Float
+  date     DateTime       @default(now())
+  status   InvoiceStatus  @default(DRAFT)
+
+  order    Order          @relation(fields: [orderId], references: [id])
+
+  @@map("invoices")
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+  PAYPAL
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
