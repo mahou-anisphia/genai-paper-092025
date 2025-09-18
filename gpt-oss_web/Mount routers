@@ -1,0 +1,10 @@
+app.use("/api/customers", customerRouter);
+app.use("/api/products", productRouter);
+app.use("/api/orders", orderRouter);
+app.use("/api/payments", paymentRouter);
+app.use("/api/invoices", invoiceRouter);
+
+const PORT = process.env.PORT ?? 4000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server listening on http://localhost:${PORT}`);
+});

@@ -1,0 +1,140 @@
+
+
+// check.js: Extract all file and folder paths from gemma3 (1).md, compare to actual workspace, and check README.md content
+const fs = require("fs");
+const path = require("path");
+
+
+// Use the absolute path directly
+const mdPath = "C:/Users/Admin/OneDrive - Swinburne University/Documents/IT SWIN COURSE/Lab Software/Gemma/gemma3 (1).md";
+const md = fs.readFileSync(mdPath, "utf-8");
+
+
+// 1. Extract all file paths from lines with filename in backticks followed by a colon (e.g., `modules/customer.ts`:) in the markdown
+let allFiles = [];
+const lines = md.split(/\r?\n/);
+for (let i = 0; i < lines.length; i++) {
+  const fileLine = lines[i].match(/^`([^`]+)`:/);
+  if (fileLine) {
+    allFiles.push(fileLine[1].trim());
+  }
+}
+
+// 2. Add README.md (special case, if not already present)
+if (!allFiles.includes("README.md")) allFiles.push("README.md");
+
+// 3. Remove duplicates and sort
+const uniqueFiles = [...new Set(allFiles)].sort();
+
+// 5. Extract all FOLDER paths from file paths
+let allFolders = new Set();
+for (const file of uniqueFiles) {
+  const parts = file.split("/");
+  for (let i = 1; i < parts.length; i++) {
+    allFolders.add(parts.slice(0, i).join("/"));
+  }
+}
+const uniqueFolders = Array.from(allFolders).sort();
+
+// 6. Get all actual files and folders in workspace recursively (relative to __dirname)
+function getAllFilesAndFolders(dir, baseDir = dir) {
+  let files = [];
+  let folders = [];
+  const list = fs.readdirSync(dir);
+  for (const file of list) {
+    const filePath = path.join(dir, file);
+    const relPath = path.relative(baseDir, filePath).replace(/\\/g, "/");
+    const stat = fs.statSync(filePath);
+    if (stat && stat.isDirectory()) {
+      folders.push(relPath);
+      const { files: subFiles, folders: subFolders } = getAllFilesAndFolders(filePath, baseDir);
+      files = files.concat(subFiles);
+      folders = folders.concat(subFolders);
+    } else {
+      files.push(relPath);
+    }
+  }
+  return { files, folders };
+}
+
+const { files: actualFiles, folders: actualFolders } = getAllFilesAndFolders(__dirname, __dirname);
+const sortedActualFiles = actualFiles.sort();
+const sortedActualFolders = actualFolders.sort();
+
+
+// 7. Compare
+const missingFiles = uniqueFiles.filter(f => !sortedActualFiles.includes(f));
+const extraFiles = sortedActualFiles.filter(f => !uniqueFiles.includes(f));
+const missingFolders = uniqueFolders.filter(f => !sortedActualFolders.includes(f));
+const extraFolders = sortedActualFolders.filter(f => !uniqueFolders.includes(f));
+
+console.log("\n==================== CHECK SUMMARY ====================");
+console.log("\nRequired files from markdown:");
+console.log(uniqueFiles.map(f => `  - ${f}`).join("\n"));
+console.log("\nFiles actually present in workspace:");
+console.log(sortedActualFiles.map(f => `  - ${f}`).join("\n"));
+
+console.log("\n=== Files referenced in markdown but missing in workspace ===");
+if (missingFiles.length === 0) {
+  console.log("✅ None! All referenced files exist.");
+} else {
+  for (const f of missingFiles) console.log("❌ MISSING FILE:", f);
+}
+
+console.log("\n=== Folders referenced in markdown but missing in workspace ===");
+if (missingFolders.length === 0) {
+  console.log("✅ None! All referenced folders exist.");
+} else {
+  for (const f of missingFolders) console.log("❌ MISSING FOLDER:", f);
+}
+
+console.log("\n=== Files present in workspace but NOT referenced in markdown ===");
+if (extraFiles.length === 0) {
+  console.log("✅ None! No extra files.");
+} else {
+  for (const f of extraFiles) console.log("⚠️ EXTRA FILE:", f);
+}
+
+console.log("\n=== Folders present in workspace but NOT referenced in markdown ===");
+if (extraFolders.length === 0) {
+  console.log("✅ None! No extra folders.");
+} else {
+  for (const f of extraFolders) console.log("⚠️ EXTRA FOLDER:", f);
+}
+
+// 8. README.md content check
+function extractReadme(md) {
+  const lines = md.split(/\r?\n/);
+  let readmeLines = [];
+  for (const line of lines) {
+    if (/^=+$/.test(line.trim())) break;
+    readmeLines.push(line);
+  }
+  return readmeLines.join("\n").trim();
+}
+
+const expectedReadme = extractReadme(md);
+const readmePath = path.join(__dirname, "README.md");
+if (fs.existsSync(readmePath)) {
+  const actualReadme = fs.readFileSync(readmePath, "utf-8").trim();
+  if (actualReadme === expectedReadme) {
+    console.log("\n✅ README.md content matches expected content.");
+  } else {
+    console.log("\n❌ README.md content does NOT match expected content!");
+  }
+} else {
+  console.log("\n❌ README.md is missing!");
+}
+
+console.log("\n=== Summary ===");
+console.log(`Markdown referenced: ${uniqueFiles.length} files, ${uniqueFolders.length} folders\nWorkspace present: ${sortedActualFiles.length} files, ${sortedActualFolders.length} folders`);
+if (missingFiles.length === 0 && extraFiles.length === 0 && missingFolders.length === 0 && extraFolders.length === 0) {
+  console.log("All files and folders match between markdown and workspace.");
+} else {
+  if (missingFiles.length > 0) console.log(`${missingFiles.length} files missing.`);
+  if (extraFiles.length > 0) console.log(`${extraFiles.length} extra files.`);
+  if (missingFolders.length > 0) console.log(`${missingFolders.length} folders missing.`);
+  if (extraFolders.length > 0) console.log(`${extraFolders.length} extra folders.`);
+}
+    
+
